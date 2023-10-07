@@ -1,4 +1,4 @@
-from spApi import get_headers
+from spApi import get_headers, load_credentials
 import requests
 import time
 import json
@@ -51,3 +51,23 @@ def get_refundEventList(startDate, endDate):
             break
 
     return refundEventList
+
+def parse_refund(refund):
+    SKUS = load_credentials()['SKUS']
+    for elem in refund['ShipmentItemAdjustmentList']:
+        reso_json = {'Refund' : {}}
+        refund_json = reso_json['Refund']
+        refund_json['order_id'] = refund['AmazonOrderId']
+        refund_json['purchase_date'] = refund['PostedDate']
+        refund_json['sales_channel'] = refund['MarketplaceName']
+        refund_json['asin'] = SKUS[elem['SellerSKU']]
+        refund_json['quantity'] = elem['QuantityShipped']
+        refund_json['comm_venditore'], refund_json['comm_refund'] = 0.0, 0.0
+        if 'ItemFeeAdjustmentList' in elem:
+            for fee in elem['ItemFeeAdjustmentList']:
+                if fee['FeeType'] == 'Commission':
+                    refund_json['comm_venditore'] = fee['FeeAmount']['CurrencyAmount']
+                if fee['FeeType'] == 'RefundCommission':
+                    refund_json['comm_refund'] = fee['FeeAmount']['CurrencyAmount']
+            if refund_json['comm_venditore'] != 0.0 and refund_json['comm_refund'] != 0.0:
+                return reso_json
